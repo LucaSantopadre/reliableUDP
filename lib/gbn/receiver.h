@@ -1,0 +1,1 @@
+int recvfromGBN(int socket, struct sockaddr_in *sender_addr, int loss_prob, int fd);

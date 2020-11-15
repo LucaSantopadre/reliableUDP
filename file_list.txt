@@ -1,0 +1,3 @@
+pluto.csv
+pippo.txt
+paperino.pdf
