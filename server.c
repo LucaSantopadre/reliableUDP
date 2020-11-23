@@ -43,14 +43,14 @@ int main(int argc, char **argv){
     char *list_files[100];
     
     createSocketAndBind(&server_sock, &server_address, SERVER_PORT); 
-    logger("INFO", __func__,__LINE__, "Server started!");
+    logger("INFO", __func__,__LINE__, "Server started!\n");
     while (1) {
         setTimeout(server_sock, 0); // recvfrom all'inizio è bloccante (si fa con timeout==0)
         if (handshake(server_sock, &client_address) == 0){   //se un client non riesce a ben connettersi, il server non forka
             pid = fork();
             
             if (pid < 0){
-                logger("ERROR", __func__,__LINE__, "Fork error");
+                logger("ERROR", __func__,__LINE__, "Fork error\n");
                 // exit o return
             }
             if (pid == 0){
@@ -60,15 +60,15 @@ int main(int argc, char **argv){
                 //READY
                 res = sendto(child_sock, READY, strlen(READY), 0, (struct sockaddr *)&client_address, addr_len);
                 if (res < 0) {
-                    logger("ERROR", __func__, __LINE__ ,"Port comunication failed");
+                    logger("ERROR", __func__, __LINE__ ,"Port comunication failed\n");
                 }
 
 
             request:
-                logger("INFO", __func__,__LINE__, "Waiting for request...");
+                logger("INFO", __func__,__LINE__, "Waiting for request...\n");
                 memset(buff, 0, sizeof(buff));
                 if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0){
-                    logger("ERROR", __func__, __LINE__,"Request failed");
+                    logger("ERROR", __func__, __LINE__,"Request failed\n");
                     free(buff);
                     free(path);
                     close(child_sock);
@@ -78,7 +78,7 @@ int main(int argc, char **argv){
                 switch (*(int*)buff){
 
                 case LIST:
-                    logger("INFO", __func__, __LINE__, "LIST Request");
+                    logger("INFO", __func__, __LINE__, "LIST Request\n");
 
                     /*
                     //create file files_list
@@ -102,11 +102,11 @@ int main(int argc, char **argv){
                     fd = open("server-key.pem", O_RDWR, 0666); //REMOVE
                     setTimeout(child_sock, TIMEOUT_PKT);
                     sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
-
+                    close(fd);
                     break; // -------------------------------------------------------------------------ù
                 
                 case GET:
-                    logger("INFO", __func__, __LINE__, "GET Request");
+                    logger("INFO", __func__, __LINE__, "GET Request\n");
                     break; // -------------------------------------------------------------------------
 
                 case PUT:
@@ -137,7 +137,7 @@ int createSocketAndBind(int *sock, struct sockaddr_in *address, int port) {
 	
 	//creazione socket
 	if ((*sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        logger("ERROR", __func__, __LINE__, "Socket creation error");
+        logger("ERROR", __func__, __LINE__, "Socket creation error\n");
 		exit(-1);
 	}
 
@@ -149,7 +149,7 @@ int createSocketAndBind(int *sock, struct sockaddr_in *address, int port) {
 
 	// socket bind
 	if (bind(*sock, (struct sockaddr *)address, sizeof(*address)) < 0) {
-        logger("ERROR", __func__, __LINE__, "Socket bind error");
+        logger("ERROR", __func__, __LINE__, "Socket bind error\n");
 		exit(-1);
 	}
 	return *sock;
@@ -163,26 +163,26 @@ int handshake (int server_sock, struct sockaddr_in* client_addr) {
     socklen_t addr_len = sizeof(*client_addr);
 
     // SYN
-    logger("INFO", __func__, __LINE__, "SYN wait...");
+    logger("INFO", __func__, __LINE__, "SYN wait...\n");
     control = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
     if (control < 0 || strncmp(buff, SYN, strlen(SYN)) != 0) {
-        logger("ERROR", __func__, __LINE__, "connection failed (receiving SYN)");
+        logger("ERROR", __func__, __LINE__, "connection failed (receiving SYN)\n");
         return 1;
     }
 
     printf("------------------ HANDSHAKE ------------------\n");
     // SYNACK
-    logger("INFO", __func__,__LINE__, "SYN received      | <--- |");
-    logger("INFO", __func__, __LINE__, "SYNACK sent       | ---> |");
+    logger("INFO", __func__,__LINE__, "SYN received      | <--- |\n");
+    logger("INFO", __func__, __LINE__, "SYNACK sent       | ---> |\n");
     control = sendto(server_sock, SYNACK, strlen(SYNACK), 0, (struct sockaddr *)client_addr, addr_len);
     if (control < 0) {
-        logger("ERROR", __func__, __LINE__, "connection failed (sending SYNACK)");
+        logger("ERROR", __func__, __LINE__, "connection failed (sending SYNACK)\n");
         return 1;
     }
 
     // ACK, ESTAB
-    logger("INFO", __func__,__LINE__, "ACK received      | <--- |");
-    logger("INFO", __func__,__LINE__, "ESTAB connection. |v----v|");
+    logger("INFO", __func__,__LINE__, "ACK received      | <--- |\n");
+    logger("INFO", __func__,__LINE__, "ESTAB connection. |v----v|\n");
     printf("-----------------------------------------------\n");
     return 0;
 }

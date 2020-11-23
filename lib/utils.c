@@ -19,7 +19,7 @@
 void logger(const char* tag, const char* function, const int linenum, const char* message) {
    time_t now;
    time(&now);
-   printf("[%s | %s | %s:%d]: %s\n", timeNow(), tag, function, linenum, message);
+   printf("[%s | %s | %s:%d]: %s", timeNow(), tag, function, linenum, message);
 }
 
 

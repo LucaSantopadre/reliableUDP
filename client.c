@@ -41,7 +41,7 @@ int main (int argc, char** argv) {
 	//READY
 	res = recvfrom(client_sock, buff, strlen(READY), 0, (struct sockaddr *)&server_address, &addr_len);
 	if (res < 0) {
-		logger("ERROR", __func__, __LINE__, "Server dispaching error");
+		logger("ERROR", __func__, __LINE__, "Server dispaching error\n");
 		exit(-1);
 	}
 	
@@ -61,7 +61,7 @@ start:
 	case LIST:
 		res = sendto(client_sock, (void*)&list, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len);
 		if(res < 0){
-			logger("ERROR", __func__, __LINE__, "Request failed (sendto)");
+			logger("ERROR", __func__, __LINE__, "Request failed (sendto)\n");
 			exit(-1);
 		}
 		
@@ -82,10 +82,9 @@ start:
 			read(fd, buff, end_file);
 			printf("\n==================== FILE LIST =====================\n");
 			printf("%s", buff);
-			printf("====================================================\n");
-
+			printf("\n====================================================\n");
 			close(fd);
-			remove("files/client/file_list.txt");
+			//remove("files/client/file_list.txt");
 		}
 		break; // --------------------------------------------------------------------------
 

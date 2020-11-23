@@ -23,7 +23,7 @@
 
 // TX PARAMS
 #define LOST_PROB 20			// 0%<=LOST_PROB<=100%
-#define WINDOW 32				// Dimensione della finestra di trasmissione
+#define WINDOW 3				// Dimensione della finestra di trasmissione
 #define PKT_SIZE 1500			// Dimensione del pacchetto
 #define MAX_RTO 300000			// Valore massimo del timeout di ritrasmissione in microsecondi
 #define MAX_ERR 25
