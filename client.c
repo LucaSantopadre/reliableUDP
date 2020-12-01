@@ -81,7 +81,7 @@ start:
 			lseek(fd, 0, SEEK_SET);
 			read(fd, buff, end_file);
 			printf("\n==================== FILE LIST =====================\n");
-			printf("%s", buff);
+			//printf("%s", buff);
 			printf("\n====================================================\n");
 			close(fd);
 			//remove("files/client/file_list.txt");

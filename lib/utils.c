@@ -39,9 +39,20 @@ char *timeNow(){
 	return timestamp;
 }
 
+// Set socket timeout in us
+void set_timeout_sec(int sockfd, int timeout) {
+	struct timeval time;
+	time.tv_sec = timeout;
+	time.tv_usec = 0;
+	if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&time, sizeof(time)) < 0) {
+		perror("setsockopt error");
+		exit(-1);
+	}
+}
 
 // Set socket timeout in us
-void setTimeout(int sockfd, int timeout) {
+void set_timeout(int sockfd, int timeout) {
+	
 	struct timeval time;
 	time.tv_sec = 0;
 	time.tv_usec = timeout;
@@ -63,15 +74,13 @@ void inputs_wait(char *s){
 
 
 // Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
-bool is_packet_lost(int prob){
-  int random = rand() %100;
- // printf ("Random Number: %d\n",random);
+bool packet_lost(int prob){
+  int random = rand()%100+1;
   if (random<prob){
 	  return true;
   }
   return false;
 }
-
 
 
 

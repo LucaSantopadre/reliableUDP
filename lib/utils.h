@@ -15,10 +15,13 @@ int getFiles(char *list_files[], char* dir);
 int correct_send(int lost_prob) ;
 
 void inputs_wait(char *s);
-bool is_packet_lost(int prob);
+bool packet_lost(int prob);
 char *timeNow();
 void print_percentage(int part, int total, int oldPart);
 void clearScreen();
-void setTimeout(int, int);
+void set_timeout_sec(int sockfd, int timeout);
+void set_timeout(int, int);
+int get_timeout(int sockfd);
+
 
 

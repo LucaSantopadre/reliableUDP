@@ -36,7 +36,7 @@ void recvPkt(int fd){
 	if(seq_num == expected_seq_num){
 		// ok
 		printf("PKT RECEIVED %d\n",seq_num);
-		printf("DATA RECEIVED:\n%s\n",pkt_aux.data);
+		//printf("DATA RECEIVED:\n%s\n",pkt_aux.data);
 		error_count = 0;
 		expected_seq_num++;
 	} else{
@@ -45,11 +45,6 @@ void recvPkt(int fd){
 		seq_num = expected_seq_num - 1;
 		error_count++;
 		toWrite = false;
-	}
-
-	if(seq_num == 3 && toLost){
-		toLost=true;
-		goto j;
 	}
 
 	//invio ack

@@ -45,7 +45,7 @@ int main(int argc, char **argv){
     createSocketAndBind(&server_sock, &server_address, SERVER_PORT); 
     logger("INFO", __func__,__LINE__, "Server started!\n");
     while (1) {
-        setTimeout(server_sock, 0); // recvfrom all'inizio è bloccante (si fa con timeout==0)
+        set_timeout(server_sock, 0); // recvfrom all'inizio è bloccante (si fa con timeout==0)
         if (handshake(server_sock, &client_address) == 0){   //se un client non riesce a ben connettersi, il server non forka
             pid = fork();
             
@@ -56,6 +56,7 @@ int main(int argc, char **argv){
             if (pid == 0){
                 pid = getpid();
                 child_sock = createSocketAndBind(&child_sock, &child_addr, 0);
+                set_timeout_sec(child_sock, REQUEST_SEC);
                 
                 //READY
                 res = sendto(child_sock, READY, strlen(READY), 0, (struct sockaddr *)&client_address, addr_len);
@@ -64,7 +65,8 @@ int main(int argc, char **argv){
                 }
 
 
-            request:
+    request:
+                set_timeout_sec(child_sock, REQUEST_SEC);
                 logger("INFO", __func__,__LINE__, "Waiting for request...\n");
                 memset(buff, 0, sizeof(buff));
                 if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0){
@@ -100,7 +102,7 @@ int main(int argc, char **argv){
 
                     
                     fd = open("server-key.pem", O_RDWR, 0666); //REMOVE
-                    setTimeout(child_sock, TIMEOUT_PKT);
+                    //set_timeout(child_sock, TIMEOUT_PKT);
                     sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
                     close(fd);
                     break; // -------------------------------------------------------------------------ù

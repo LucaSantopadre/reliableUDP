@@ -28,12 +28,16 @@
 #define MAX_RTO 300000			// Valore massimo del timeout di ritrasmissione in microsecondi
 #define MAX_ERR 25
 
-// TIMEOUT PARAMS
+// TIMEOUT PARAMS IN USEC
 #define TIMEOUT_PKT 24000	//24000 valore minimo 8000
 #define TIME_UNIT 4000		//valore minimo di cui si può variare timeout
 #define MAX_TIMEOUT 800000  //800 millisecondi timeout massimo scelto
 #define MIN_TIMEOUT 8000	//8 millisecondi timeout minimo
-#define ADAPTIVE 1	//impostare a 0 per abolire timeout adattativo
+#define ADAPTIVE 0	//impostare a 0 per abolire timeout adattativo
+
+// TIMEOUT PARAMS IN SEC
+#define REQUEST_SEC 10
+#define SELECT_FILE_SEC 30
 
 // CLIENT/SERVER DIRS
 #define CLIENT_DIR "./files/client"
