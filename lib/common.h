@@ -33,7 +33,7 @@
 #define TIME_UNIT 4000		//valore minimo di cui si può variare timeout
 #define MAX_TIMEOUT 800000  //800 millisecondi timeout massimo scelto
 #define MIN_TIMEOUT 8000	//8 millisecondi timeout minimo
-#define ADAPTIVE 0	//impostare a 0 per abolire timeout adattativo
+#define ADAPTIVE 1	//impostare a 0 per abolire timeout adattativo
 
 // TIMEOUT PARAMS IN SEC
 #define REQUEST_SEC 10

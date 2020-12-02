@@ -61,7 +61,7 @@ start:
 	case LIST:
 		res = sendto(client_sock, (void*)&list, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len);
 		if(res < 0){
-			logger("ERROR", __func__, __LINE__, "Request failed (sendto)\n");
+			logger("ERROR", __func__, __LINE__, "Request LIST failed (sendto)\n");
 			exit(-1);
 		}
 		
@@ -74,6 +74,8 @@ start:
 			remove("files/client/file_list.txt");
 		}
 
+		//printf("File list received!");
+
 
 		// Lettura del file contenente la lista di file del server
 		end_file = lseek(fd, 0, SEEK_END);
@@ -81,7 +83,7 @@ start:
 			lseek(fd, 0, SEEK_SET);
 			read(fd, buff, end_file);
 			printf("\n==================== FILE LIST =====================\n");
-			//printf("%s", buff);
+			printf("%s", buff);
 			printf("\n====================================================\n");
 			close(fd);
 			//remove("files/client/file_list.txt");
@@ -89,6 +91,41 @@ start:
 		break; // --------------------------------------------------------------------------
 
 	case GET:
+		if(sendto(client_sock, (void*)&get, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len) < 0){
+			logger("ERROR", __func__, __LINE__, "Request GET failed (sendto)\n");
+			exit(-1);
+		}
+		printf("> File name to download (30 seconds): ");
+		alarm(SELECT_FILE_SEC);
+		memset(buff, 0, sizeof(buff));
+		if(scanf("%s", buff)>0) {
+			alarm(0);
+		}
+		// send filename
+		if(sendto(client_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&server_address, addr_len) < 0) {
+			logger("ERROR", __func__, __LINE__, "Request failed (sendto)\n");
+			exit(-1);
+		}
+		
+		snprintf(path, 13+strlen(buff)+1, "files/client/%s", buff);
+		fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0666);
+		printf("filename sant: %s\n",path );
+		// file found?
+		if(recvfrom(client_sock, buff, strlen(NFOUND), 0, (struct sockaddr *)&server_address, &addr_len) < 0) {
+			logger("ERROR", __func__, __LINE__, "Receive found failed (recvfrom)\n");
+		}
+		if(strncmp(buff, NFOUND, strlen(NFOUND)) == 0) { //file non presente sul server se ricevo notfound
+			logger("WARN", __func__, __LINE__, "File not found \n");
+			close(fd);
+			remove(path);
+			exit(-1);
+		}
+		// receiving file
+		control = recvfromGBN(client_sock, &server_address,0,fd);
+		if(control == -1) {
+			close(fd);
+			remove(path);
+		}
 
 		break; // --------------------------------------------------------------------------
 

@@ -82,7 +82,7 @@ int main(int argc, char **argv){
                 case LIST:
                     logger("INFO", __func__, __LINE__, "LIST Request\n");
 
-                    /*
+                    
                     //create file files_list
                     num_files = getFiles(list_files, SERVER_DIR);
                     fd = open("file_list.txt", O_CREAT | O_TRUNC | O_RDWR, 0666);
@@ -98,17 +98,53 @@ int main(int argc, char **argv){
                         write(fd, buff, strlen(buff));
                         i++;
                     }
-                    */
+                    sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
+                    close(fd);
 
-                    
+                    /*
                     fd = open("server-key.pem", O_RDWR, 0666); //REMOVE
                     //set_timeout(child_sock, TIMEOUT_PKT);
                     sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
                     close(fd);
+                    */
+
                     break; // -------------------------------------------------------------------------ù
                 
                 case GET:
                     logger("INFO", __func__, __LINE__, "GET Request\n");
+                    set_timeout_sec(child_sock, SELECT_FILE_SEC);
+                    memset(buff, 0, sizeof(buff));
+                    // get filename
+                    if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0) {
+                        logger("ERROR", __func__, __LINE__, "File transfer failed\n");
+                        perror("");
+                        free(buff);
+                        free(path);
+                        close(child_sock);
+                        return 1;
+                    }
+                    // open file
+                    snprintf(path, 13+strlen(buff)+1, "files/server/%s", buff); 
+                    fd = open(path, O_RDONLY);
+                    // file not found
+                    if(fd == -1){
+                        logger("WARN", __func__, __LINE__, "File not found\n");
+                        if (sendto(server_sock, NFOUND, strlen(NFOUND), 0, (struct sockaddr *)&client_address, addr_len) < 0) {
+                            logger("ERROR", __func__, __LINE__, "Communicate file not found error \n");
+                            return 1;
+                        }
+                        free(buff);
+                        free(path);
+                        close(child_sock);
+                        return 1;
+                    }
+                    // file ready to send
+                    if (sendto(server_sock, FOUND, strlen(FOUND), 0, (struct sockaddr *)&client_address, addr_len) < 0) {
+                        logger("ERROR", __func__, __LINE__, "Communicate file found error \n");
+                        return 1;
+                    }
+                    sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
+                    close(fd);
                     break; // -------------------------------------------------------------------------
 
                 case PUT:

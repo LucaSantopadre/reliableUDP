@@ -122,7 +122,6 @@ void sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pr
 	//getStatusParam("**************END");
 	if(err_count==MAX_ERR){
 		printf("File transfer failed (inactive receiver)\n");
-		close(fd);
 		return;
 	}
 	
