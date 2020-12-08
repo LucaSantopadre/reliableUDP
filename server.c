@@ -17,7 +17,7 @@
 
 int createSocketAndBind(int *sock, struct sockaddr_in *address, int port);
 int handshake(int , struct sockaddr_in *);
-void serverReliableConnClose (int server_sock, struct sockaddr_in* client_addr);
+void closeConnection (int server_sock, struct sockaddr_in* client_addr);
 
 
 
@@ -40,11 +40,12 @@ int main(int argc, char **argv){
     int fd;
     int res;
     int num_files;
-    char *list_files[100];
+    char *list_files[MAX_FILE_LIST];
     
     createSocketAndBind(&server_sock, &server_address, SERVER_PORT); 
     logger("INFO", __func__,__LINE__, "Server started!\n");
     while (1) {
+        //printf("while\n");
         set_timeout(server_sock, 0); // recvfrom all'inizio è bloccante (si fa con timeout==0)
         if (handshake(server_sock, &client_address) == 0){   //se un client non riesce a ben connettersi, il server non forka
             pid = fork();
@@ -70,7 +71,7 @@ int main(int argc, char **argv){
                 logger("INFO", __func__,__LINE__, "Waiting for request...\n");
                 memset(buff, 0, sizeof(buff));
                 if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0){
-                    logger("ERROR", __func__, __LINE__,"Request failed\n");
+                    logger("ERROR", __func__, __LINE__,"Request command failed\n");
                     free(buff);
                     free(path);
                     close(child_sock);
@@ -81,9 +82,8 @@ int main(int argc, char **argv){
 
                 case LIST:
                     logger("INFO", __func__, __LINE__, "LIST Request\n");
-
                     
-                    //create file files_list
+                    //create file files_list.txt
                     num_files = getFiles(list_files, SERVER_DIR);
                     fd = open("file_list.txt", O_CREAT | O_TRUNC | O_RDWR, 0666);
                     if(fd<0){
@@ -98,15 +98,12 @@ int main(int argc, char **argv){
                         write(fd, buff, strlen(buff));
                         i++;
                     }
-                    sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
+                    if(sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd) == -1){
+                        logger("ERROR", __func__, __LINE__, "Error sending file");
+                        close(fd);
+                        return 1;
+                    }
                     close(fd);
-
-                    /*
-                    fd = open("server-key.pem", O_RDWR, 0666); //REMOVE
-                    //set_timeout(child_sock, TIMEOUT_PKT);
-                    sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
-                    close(fd);
-                    */
 
                     break; // -------------------------------------------------------------------------ù
                 
@@ -117,7 +114,6 @@ int main(int argc, char **argv){
                     // get filename
                     if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0) {
                         logger("ERROR", __func__, __LINE__, "File transfer failed\n");
-                        perror("");
                         free(buff);
                         free(path);
                         close(child_sock);
@@ -133,6 +129,7 @@ int main(int argc, char **argv){
                             logger("ERROR", __func__, __LINE__, "Communicate file not found error \n");
                             return 1;
                         }
+                        close(fd);
                         free(buff);
                         free(path);
                         close(child_sock);
@@ -148,17 +145,56 @@ int main(int argc, char **argv){
                     break; // -------------------------------------------------------------------------
 
                 case PUT:
-                    /* code */
+                    logger("INFO", __func__, __LINE__, "PUT Request\n");
+                    set_timeout_sec(child_sock, SELECT_FILE_SEC);
+                    memset(buff, 0, sizeof(buff));
+                    // get filename
+                    if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0) {
+                        logger("ERROR", __func__, __LINE__, "File transfer failed\n");
+                        perror("");
+                        free(buff);
+                        close(child_sock);
+                        return 1;
+                    }
+                    /*
+                    // file alredy exists
+                    snprintf(path, 13+strlen(buff)+1, "files/server/%s", buff); 
+                    fd = open(path, O_RDONLY);
+                    if(fd>0){
+                        logger("ERROR", __func__, __LINE__, "File alredy exists\n");
+                        close(fd);
+                        return 1;
+                    }
+                    close(fd);
+                    */
+                    // file tranfer
+                    fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0666);
+                    res = recvfromGBN(child_sock, &client_address,0,fd);
+                    if(res == -1) {
+                        close(fd);
+                        remove(path);
+                        free(buff);
+                        free(path);
+                        close(child_sock);
+                        return 1;
+                    }
+                    close(fd);
                     break; // -------------------------------------------------------------------------
 
                 case CLOSE:
-                    /* code */
+                    closeConnection(child_sock, &client_address);
+                    free(buff);
+                    free(path);
+                    close(child_sock);
+                    return 0;
                     break; // -------------------------------------------------------------------------
 
 
                 default:
                     break;
                 }
+                //printf("goto request\n");
+                goto request;
             } //pid==0
         } // sever_reliable ==0
     } //while(1)
@@ -227,49 +263,49 @@ int handshake (int server_sock, struct sockaddr_in* client_addr) {
 
 
 // Chiude la connessione con il client in modo affidabile
-void serverReliableConnClose (int server_sock, struct sockaddr_in* client_addr) {
-    int control;
+void closeConnection (int server_sock, struct sockaddr_in* client_addr) {
+    int res;
     char *buff = calloc(PKT_SIZE, sizeof(char));
     socklen_t addr_len = sizeof(*client_addr);
    
-    printf("\n================= CONNECTION CLOSE =================\n");
+    printf("------------------ CLOSE CONNECTION ------------------\n");
 
 
-    // In attesa di ricevere FIN
-    control = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
-    if (control < 0 || strncmp(buff, FIN, strlen(FIN)) != 0) {
+    // FIN
+    res = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
+    if (res < 0 || strncmp(buff, FIN, strlen(FIN)) != 0) {
         printf("SERVER: close connection failed (receiving FIN)\n");
         exit(-1);
     }
-    printf("%s SERVER: ricevuto FIN\n", timeNow());
+    logger("INFO", __func__,__LINE__, "FIN received           | <--- |\n");
  	
-    // Invio del FINACK
-    printf("%s SERVER: invio FINACK\n", timeNow());
-    control = sendto(server_sock, FINACK, strlen(FINACK), 0, (struct sockaddr *)client_addr, addr_len);
-    if (control < 0) {
+    // FINACK
+    logger("INFO", __func__, __LINE__,"FINACK sent            | ---> |\n");
+    res = sendto(server_sock, FINACK, strlen(FINACK), 0, (struct sockaddr *)client_addr, addr_len);
+    if (res < 0) {
         printf("SERVER: close connection failed (sending FINACK)\n");
         exit(-1);
     }
 
-    // Invio del FIN
-    printf("%s SERVER: invio FIN\n", timeNow());
-	  control = sendto(server_sock, FIN, strlen(FIN), 0, (struct sockaddr *)client_addr, addr_len);
-    if (control < 0) {
+    // FIN
+    logger("INFO", __func__, __LINE__,"FIN sent               | ---> |\n");
+	  res = sendto(server_sock, FIN, strlen(FIN), 0, (struct sockaddr *)client_addr, addr_len);
+    if (res < 0) {
         printf("SERVER: close connection failed (sending FIN)\n");
         exit(-1);
     }
 
-    // In attesa del FINACK
+    // FINACK
     memset(buff, 0, sizeof(buff));
-    control = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
-    if (control < 0 || strncmp(buff, FINACK, strlen(FINACK)) != 0) {
+    res = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
+    if (res < 0 || strncmp(buff, FINACK, strlen(FINACK)) != 0) {
         printf("SERVER: close connection failed (receiving FINACK)\n");
         exit(-1);
     }
 
     // Connessione chiusa
-    printf("%s SERVER: ricevuto FINACK\n", timeNow());
-	printf("SERVER: connection closed\n");
-	printf("===================================================\n\n");
+    logger("INFO", __func__,__LINE__, "FINACK received        | <--- |\n");
+	logger("INFO", __func__,__LINE__, "Connection closed      |   X  |\n");
+	printf("-----------------------------------------------------\n");
     return;
 }

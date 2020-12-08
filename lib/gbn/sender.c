@@ -25,7 +25,6 @@ struct thread_args
     socklen_t addr_len;
 };
 
-
 void initParams(int N);
 void getStatusParam(char *step);
 void *recvACK(void *arg);
@@ -64,7 +63,7 @@ void getStatusParam(char *step){
 }
 
 
-void sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_prob, int fd) {
+int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_prob, int fd) {
 
 	
 	int i;
@@ -81,7 +80,7 @@ void sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pr
 	t_args.rcv_addr = rcv_addr;
 	t_args.addr_len = addr_len;
 	int ret = pthread_create(&thread,NULL,recvACK,(void*)&t_args);
-	logger("INFO", __func__,__LINE__, "Thread for ack created\n");
+	//logger("INFO", __func__,__LINE__, "Thread for ack created\n");
 
 	// CALCOLO TOTALE PACCHETTI
 	file_dim = lseek(fd, 0, SEEK_END); // in byte
@@ -122,26 +121,41 @@ void sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pr
 	//getStatusParam("**************END");
 	if(err_count==MAX_ERR){
 		printf("File transfer failed (inactive receiver)\n");
-		return;
+		return -1;
 	}
 	
 	//END TX -> SEND "-1" PKT
-	for(i=0; i<MAX_ERR; i++){
-		memset(buff, 0, PKT_SIZE);
-		((packet*)buff)->seq_num=-1;
-		if(sendto(sock, buff, sizeof(int), 0, (struct sockaddr *)rcv_addr, addr_len) > 0) {
-			printf("File transfer finished\n");
-			gettimeofday(&endTime, NULL);
-			double tm=endTime.tv_sec-startTime.tv_sec+(double)(endTime.tv_usec-startTime.tv_usec)/1000000;
-			double tp=file_dim/tm;
-			printf("Transfer time: %f sec [%f KB/s]\n", tm, tp/1024);
-			
-			return;
-		}
-	}
+	memset(buff, 0, PKT_SIZE);
+	((packet*)buff)->seq_num=-1;
+	if(sendto(sock, buff, sizeof(int), 0, (struct sockaddr *)rcv_addr, addr_len) > 0) {
+		startTimer(0);
+		alarm(0);
+		logger("INFO", __func__,__LINE__, "File transfered, time: ");
+		gettimeofday(&endTime, NULL);
+		double tm=endTime.tv_sec-startTime.tv_sec+(double)(endTime.tv_usec-startTime.tv_usec)/1000000;
+		double tp=file_dim/tm;
+		double kbps= tp/1024;
 
-	printf("File transfer failed\n");
-	return;
+		char str[20];
+		sprintf(str, "%lf,\n", kbps);
+
+		int fd_res = open("results.csv", O_CREAT | O_APPEND | O_RDWR, 0666); 
+		write(fd_res, str, strlen(str));
+		close(fd_res);
+
+		if(kbps < 1000.0){
+			printf("%f sec [%f KB/s]\n", tm, kbps);
+		}else {
+			tp = tp/1024;
+			printf("%f sec [%f MB/s]\n", tm, tp/1024);
+		}
+		
+		
+		return 0;
+	}
+	
+	logger("ERROR", __func__,__LINE__, "File transfert failed\n");
+	return -1;
 }
 
 
@@ -151,7 +165,7 @@ void sendWindow(){
 	signal(SIGALRM, timeoutRoutine); 
 	for(i=next_seq_num; i<win_end+1; i++){
 		if (!isTimerStarted){
-			printf("timeout for pkt %d , us: %d\n",i, timeoutInterval);
+			//printf("timeout for pkt %d , us: %d\n",i, timeoutInterval);
 			startTimer(timeoutInterval); // setta timer per il piu vecchio pktto non acked
 			isTimerStarted = true;
 		}
@@ -163,17 +177,18 @@ void sendWindow(){
 
 void sendPkt(int i){
 	if(!packet_lost(LOST_PROB)){
-		logger("INFO", __func__,__LINE__, "Send pkt: ");
-		printf("%d, ",i);
-		printf("window: [%d ----- %d]\n",sendBase,win_end);
+		//logger("INFO", __func__,__LINE__, "Send pkt: ");
+		//printf("%d, ",i);
+		//printf("window: [%d ----- %d]\n",sendBase,win_end);
 		//getStatusParam("Send pkt");
 		if (sendto(sock, pkts+i, PKT_SIZE, 0, (struct sockaddr *)rcv_addr, addr_len)<0){
 			perror ("Sendto Error");
 			exit(-1);
 		}
 	} else{
-		logger("WARN", __func__,__LINE__, "Lost pkt: ");
-		printf("%d\n",i);
+		//LOST
+		//logger("WARN", __func__,__LINE__, "Lost pkt: ");
+		//printf("%d\n",i);
 	}
 }
 
@@ -190,20 +205,20 @@ void *recvACK(void *arg){
 	signal(SIGALRM, timeoutRoutine); 
 	while(tot_acked<=tot_pkts){	
 		if (recvfrom(socket_ack, &ack_num, sizeof(int), 0, (struct sockaddr *)rcv_addr, &addr_len) < 0){
-			logger("ERRO",__func__,__LINE__, "Error receiving ack\n");
+			//logger("ERRO",__func__,__LINE__, "Error receiving ack\n");
 			err_count++;
 			if(ADAPTIVE) {
-				printf("INCerr\n");
+				//printf("INCerr\n");
 				increase_timeout();
 				isTimerStarted = false;
 			}
 		}else {
-			logger("INFO",__func__,__LINE__, "Ack received: ");
-			printf("%d\n",ack_num);
+			//logger("INFO",__func__,__LINE__, "Ack received: ");
+			//printf("%d\n",ack_num);
 			// ACK cumulative
 			if(ack_num >= sendBase && ack_num >= expected_ack && ack_num <= win_end){
 				if(ADAPTIVE) {
-					printf("DECack\n");
+					//printf("DECack\n");
 					decrease_timeout();
 				}
 				sendBase = ack_num+1;
@@ -212,17 +227,17 @@ void *recvACK(void *arg){
 				expected_ack = sendBase;
 				startTimer(timeoutInterval);  // parte il timer per il prossimo pacchetto
 				isTimerStarted = true;
-				printf("ACKtimeout for pkt %d , us: %d\n",expected_ack, timeoutInterval);
+				//printf("ACKtimeout for pkt %d , us: %d\n",expected_ack, timeoutInterval);
 				if (tot_acked == tot_pkts){
 					startTimer(0);
-					logger("INFO", __func__,__LINE__, "Thread for ack end\n");
+					//logger("INFO", __func__,__LINE__, "Thread for ack end\n");
 					break;
 				}
 			}
 			// ACK duplicated
 			else if(ack_num < expected_ack){ 
 				if(ADAPTIVE) {
-					printf("INCdup\n");
+					//printf("INCdup\n");
 					increase_timeout();
 				}
 			}
@@ -235,10 +250,10 @@ void *recvACK(void *arg){
 // timeout routine alarm
 void timeoutRoutine(){
 	if(ADAPTIVE) {
-		printf("INCtimeout\n");
+		//printf("INCtimeout\n");
 		increase_timeout();
 	}
-	logger("WARN", __func__,__LINE__, "TIMEOUTEXPIRED\n");
+	//logger("WARN", __func__,__LINE__, "TIMEOUTEXPIRED\n");
 	isTimerStarted = false;
 	next_seq_num = sendBase;
 	sendWindow();

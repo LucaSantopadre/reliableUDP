@@ -1,4 +1,0 @@
-paperino.pdf
-pippo.txt
-test_file.txt
-pluto.csv

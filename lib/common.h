@@ -1,5 +1,8 @@
 #include <stdint.h>
 
+char i;
+#define fflush(stdin) while ((i = getchar()) != '\n' && i != EOF) { };
+
 // CONNECTION
 #define SERVER_PORT 25440
 #define SERVER_IP "127.0.0.1"
@@ -22,8 +25,8 @@
 #define CLOSE 4
 
 // TX PARAMS
-#define LOST_PROB 20			// 0%<=LOST_PROB<=100%
-#define WINDOW 3				// Dimensione della finestra di trasmissione
+#define LOST_PROB 0			// 0%<=LOST_PROB<=100%
+#define WINDOW 5			// Dimensione della finestra di trasmissione
 #define PKT_SIZE 1500			// Dimensione del pacchetto
 #define MAX_RTO 300000			// Valore massimo del timeout di ritrasmissione in microsecondi
 #define MAX_ERR 25
@@ -36,8 +39,8 @@
 #define ADAPTIVE 1	//impostare a 0 per abolire timeout adattativo
 
 // TIMEOUT PARAMS IN SEC
-#define REQUEST_SEC 10
-#define SELECT_FILE_SEC 30
+#define REQUEST_SEC 20
+#define SELECT_FILE_SEC 40
 
 // CLIENT/SERVER DIRS
 #define CLIENT_DIR "./files/client"

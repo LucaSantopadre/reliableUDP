@@ -1,4 +1,4 @@
-paperino.pdf
+logo.png
+test_file50KB.txt
 pippo.txt
-test_file.txt
-pluto.csv
+spacex.mp4
