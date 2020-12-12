@@ -182,11 +182,13 @@ init:
 			break;
 		}
 		close(fd);
-		logger("INFO", __func__, __LINE__, "File sended!\n");
+		logger("INFO", __func__, __LINE__, "File sended\n");
+		
 		break; // --------------------------------------------------------------------------
+
 	
 	case CLOSE:
-		if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
+close:	if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
 			logger("ERROR", __func__, __LINE__, "Error request close (sending)\n");
 			exit(-1);
 		}
@@ -194,10 +196,10 @@ init:
 		return 0;
 		break; // --------------------------------------------------------------------------
 
-	case 99:
-		
 
-		for (int i = 0; i < 100; i++)
+	case 99:
+			
+		for (int i = 0; i < 500; i++)
 		{
 			memset(buff, 0, sizeof(buff));
 			sprintf(buff, "f1mec.jpg");
@@ -241,6 +243,7 @@ init:
 			
 		}
 		close(fd);
+		goto close;
 		return 0;
 		break; // --------------------------------------------------------------------------
 

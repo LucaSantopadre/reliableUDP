@@ -1,4 +1,5 @@
+f1mec.jpg
 logo.png
 test_file50KB.txt
 pippo.txt
-spacex.mp4
+sample.png

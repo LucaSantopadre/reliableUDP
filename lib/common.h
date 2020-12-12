@@ -25,18 +25,17 @@ char i;
 #define CLOSE 4
 
 // TX PARAMS
-#define LOST_PROB 0			// 0%<=LOST_PROB<=100%
-#define WINDOW 5			// Dimensione della finestra di trasmissione
+#define LOST_PROB 2			// 0%<=LOST_PROB<=100%
+#define WINDOW 4			// Dimensione della finestra di trasmissione
 #define PKT_SIZE 1500			// Dimensione del pacchetto
-#define MAX_RTO 300000			// Valore massimo del timeout di ritrasmissione in microsecondi
 #define MAX_ERR 25
 
 // TIMEOUT PARAMS IN USEC
-#define TIMEOUT_PKT 24000	//24000 valore minimo 8000
+#define TIMEOUT_PKT 8000	// valore timeout 4 millisecondi
 #define TIME_UNIT 4000		//valore minimo di cui si può variare timeout
-#define MAX_TIMEOUT 800000  //800 millisecondi timeout massimo scelto
-#define MIN_TIMEOUT 8000	//8 millisecondi timeout minimo
-#define ADAPTIVE 1	//impostare a 0 per abolire timeout adattativo
+#define MAX_TIMEOUT 400000  //400 millisecondi timeout massimo scelto
+#define MIN_TIMEOUT 4000	//4 millisecondi timeout minimo
+#define ADAPTIVE 0			//impostare a 0 per abolire timeout adattativo
 
 // TIMEOUT PARAMS IN SEC
 #define REQUEST_SEC 20

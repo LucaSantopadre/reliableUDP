@@ -264,9 +264,6 @@ void timeoutRoutine(){
 // Imposta il timer di ritrasmissione
 void startTimer(int t){
     struct itimerval it_val;
-	if (t >= MAX_RTO){
-		t = MAX_RTO;
-	}
 	it_val.it_value.tv_sec = 0;
 	it_val.it_value.tv_usec = t;
 	it_val.it_interval.tv_sec = 0;
