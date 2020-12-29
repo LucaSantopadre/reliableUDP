@@ -24,7 +24,6 @@ void closeConnection (int server_sock, struct sockaddr_in* client_addr);
 
 int main(int argc, char **argv){
     //socket
-    printf("%lu", PAYLOAD);
     int server_sock, child_sock;
     struct sockaddr_in server_address, client_address, child_addr;
 
@@ -89,6 +88,7 @@ int main(int argc, char **argv){
                     if(fd<0){
                         logger("ERROR", __func__, __LINE__, "Error opening file list");
                         close(child_sock);
+                        remove("file_list.txt");
                         return 1;
                     }
                     int i=0;
@@ -101,9 +101,11 @@ int main(int argc, char **argv){
                     if(sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd) == -1){
                         logger("ERROR", __func__, __LINE__, "Error sending file");
                         close(fd);
+                        remove("file_list.txt");
                         return 1;
                     }
                     close(fd);
+                    remove("file_list.txt");
 
                     break; // -------------------------------------------------------------------------ù
                 
@@ -253,8 +255,13 @@ int handshake (int server_sock, struct sockaddr_in* client_addr) {
         logger("ERROR", __func__, __LINE__, "connection failed (sending SYNACK)\n");
         return 1;
     }
-
-    // ACK, ESTAB
+    // ACK
+    control = recvfrom(server_sock, buff, PKT_SIZE, 0, (struct sockaddr *)client_addr, &addr_len);
+    if (control < 0 || strncmp(buff, ACK_SYNACK, strlen(SYN)) != 0) {
+        logger("ERROR", __func__, __LINE__, "connection failed (receiving ACK)\n");
+        return 1;
+    }
+    //  ESTAB
     logger("INFO", __func__,__LINE__, "ACK received      | <--- |\n");
     logger("INFO", __func__,__LINE__, "ESTAB connection. |v----v|\n");
     printf("-----------------------------------------------\n");

@@ -11,14 +11,9 @@
 #include <stdbool.h>
 
 void logger(const char* tag, const char* function, const int linenum, const char* message);
-int getFiles(char *list_files[], char* dir);
-int correct_send(int lost_prob) ;
-
-void inputs_wait(char *s);
 bool packet_lost(int prob);
+int getFiles(char *list_files[], char* dir);
 char *timeNow();
-void print_percentage(int part, int total, int oldPart);
-void clearScreen();
 void set_timeout_sec(int sockfd, int timeout);
 void set_timeout(int, int);
 int get_timeout(int sockfd);

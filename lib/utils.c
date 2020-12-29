@@ -64,15 +64,6 @@ void set_timeout(int sockfd, int timeout) {
 
 
 
-
-// Utilizzata per il debug e l'analisi dei pacchetti inviati
-void inputs_wait(char *s){
-	char c;
-	printf("%s\n", s);
-	while (c = getchar() != '\n');
-}
-
-
 // Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
 bool packet_lost(int prob){
   int random = rand()%100+1;
@@ -80,37 +71,6 @@ bool packet_lost(int prob){
 	  return true;
   }
   return false;
-}
-
-
-
-
-// Stampa una barra di avanzamento relativo all'invio del file
-void print_percentage(int part, int total, int oldPart){
-	float percentage = (float) part/total*100;
-	float oldPercentage = (float) oldPart/total*100;
-
-	if ((int) oldPercentage == (int) percentage){
-		return;
-	}
-
-	printf("|");
-	for (int i = 0; i<=percentage/2; i++){
-		printf("█");
-	}
-	for (int j = percentage/2; j<50; j++){
-		printf("-");
-	}
-	printf ("|");
-	printf (" %.2f%% complete\n",percentage);
-}
-
-int correct_send(int lost_prob) {
-	int randint = rand()%100+1;
-	if(lost_prob<randint) {
-		return 1;
-	}
-	return 0;
 }
 
 

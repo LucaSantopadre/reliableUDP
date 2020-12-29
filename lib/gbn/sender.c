@@ -64,8 +64,6 @@ void getStatusParam(char *step){
 
 
 int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_prob, int fd) {
-
-	
 	int i;
 	struct timeval endTime, startTime;
 	
@@ -242,7 +240,6 @@ void *recvACK(void *arg){
 				}
 			}
 		}
-		
 	}
 }
 

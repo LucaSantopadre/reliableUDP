@@ -1,5 +1,0 @@
-f1mec.jpg
-logo.png
-test_file50KB.txt
-pippo.txt
-sample.png

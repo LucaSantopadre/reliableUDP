@@ -86,6 +86,7 @@ init:
 			
 		// Inizio la ricezione del file
 		if(recvfromGBN(client_sock, &server_address,0,fd) == -1) {
+			logger("ERROR", __func__, __LINE__, "Error receiving file\n");
 			close(fd);
 			remove("files/client/file_list.txt");
 		}
@@ -292,7 +293,7 @@ void handshakeClient (int client_sock, struct sockaddr_in *server_addr) {
 	char *buff = calloc(PKT_SIZE, sizeof(char));
 	socklen_t addr_len = sizeof(*server_addr);
 
-	// Invio del SYN
+	// SYN
 	printf("------------------ HANDSHAKE ------------------\n");
     logger("INFO", __func__, __LINE__, "SYN   sent        | <--- |\n");    
 	res = sendto(client_sock, SYN, strlen(SYN), 0, (struct sockaddr *)server_addr, addr_len);
@@ -301,7 +302,7 @@ void handshakeClient (int client_sock, struct sockaddr_in *server_addr) {
 		exit(-1);
 	}
 
-	// In attesa del SYNACK
+	// SYNACK
     logger("INFO", __func__, __LINE__, "SYNACK wait       | ---> |\n");    
 	memset(buff, 0, sizeof(buff));
 	res = recvfrom(client_sock, buff, strlen(SYNACK), 0, (struct sockaddr *)server_addr, &addr_len);
@@ -309,8 +310,15 @@ void handshakeClient (int client_sock, struct sockaddr_in *server_addr) {
 		logger("ERROR", __func__, __LINE__, "SYNACK failed    | --X |\n");
 		exit(-1);
 	}
+	// ACK
+	logger("INFO", __func__, __LINE__, "ACK   sent        | <--- |\n");    
+	res = sendto(client_sock, ACK_SYNACK, strlen(ACK_SYNACK), 0, (struct sockaddr *)server_addr, addr_len);
+	if (res < 0) {
+		logger("ERROR", __func__, __LINE__, "ACK failed       |  X-- |\n"); 
+		exit(-1);
+	}
 
-	// Connessione stabilita
+	// ESTAB
 	logger("INFO", __func__,__LINE__, "ESTAB connection. |v----v|\n");
 	printf("-----------------------------------------------\n");
 }
