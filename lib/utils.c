@@ -15,7 +15,7 @@
 #include "common.h"
 
 
-
+// simple logger 
 void logger(const char* tag, const char* function, const int linenum, const char* message) {
    time_t now;
    time(&now);
@@ -23,7 +23,7 @@ void logger(const char* tag, const char* function, const int linenum, const char
 }
 
 
-// Stampa il timestamp con precisione ai microsecondi
+// return timestamp in us
 char *timeNow(){
 	struct timeval tv;
 	struct tm* ptm;
@@ -39,7 +39,7 @@ char *timeNow(){
 	return timestamp;
 }
 
-// Set socket timeout in us
+// Set socket timeout in sec
 void set_timeout_sec(int sockfd, int timeout) {
 	struct timeval time;
 	time.tv_sec = timeout;
@@ -64,7 +64,7 @@ void set_timeout(int sockfd, int timeout) {
 
 
 
-// Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
+// return true or false based a % prob
 bool packet_lost(int prob){
   int random = rand()%100+1;
   if (random<prob){
@@ -75,11 +75,8 @@ bool packet_lost(int prob){
 
 
 
-
+// return file list
 int getFiles(char *list_files[], char* dir) {
-  /* apre la cartella e prende tutti i nomi dei file presenti in essa,
-   * inserendoli in un buffer e ritornando il numero di file presenti
-   */
   int i = 0;
   DIR *dp;
   struct dirent *ep;

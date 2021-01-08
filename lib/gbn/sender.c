@@ -1,22 +1,18 @@
 #include "../basic.h"
 
-
-int err_count;//conta quante volte consecutivamente è fallita la ricezione
+int err_count;
 off_t file_dim;
-int tot_pkts, tot_acked, tot_sent;
+int tot_pkts, tot_acked;
 int sendBase, max, window, next_seq_num, win_end;
 bool isTimerStarted;
 int timeoutInterval;
-
-packet *pkts, pkt_rcv;
-int *status_pkts; // 0 = Da Inviare // 1 = Inviato, non Acked // 2 = Acked
-
+packet *pkts;
 int sock;
 socklen_t addr_len;
 struct sockaddr_in *rcv_addr;
 
 
-// Struttura per passare argomenti al thread per la ricezione degli ACK
+// Struct for thread for receive ACKs
 pthread_t thread;
 struct thread_args
  {
@@ -35,6 +31,8 @@ void sendWindow();
 void increase_timeout();
 void decrease_timeout();
 
+
+// init params of tx
 void initParams(int N){
 	sendBase=1;
 	next_seq_num = 1;
@@ -42,14 +40,13 @@ void initParams(int N){
 	max=window-1;
 	
 	tot_acked=0;
-	tot_sent=0;
 	err_count=0;
 	isTimerStarted = false;
 	timeoutInterval = TIMEOUT_PKT;
-
 }
 
 
+// print a recap
 void getStatusParam(char *step){
 	printf("------------- %s -----------\n",step);
 	printf("next_seq_n %d\n",next_seq_num);
@@ -59,11 +56,12 @@ void getStatusParam(char *step){
 	printf("PAYLOAD    %lu\n",PAYLOAD);
 	printf("tot_pkts   %d\n",tot_pkts);
 	printf("------------------------\n\n");
-
 }
 
 
+// send file with GBN protocol
 int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_prob, int fd) {
+	logger("INFO", __func__,__LINE__, "File transfert started\n");
 	int i;
 	struct timeval endTime, startTime;
 	
@@ -80,8 +78,8 @@ int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pro
 	int ret = pthread_create(&thread,NULL,recvACK,(void*)&t_args);
 	//logger("INFO", __func__,__LINE__, "Thread for ack created\n");
 
-	// CALCOLO TOTALE PACCHETTI
-	file_dim = lseek(fd, 0, SEEK_END); // in byte
+	// TOT PKTs
+	file_dim = lseek(fd, 0, SEEK_END); //bytes
 	if(file_dim%PAYLOAD==0){
 		tot_pkts = file_dim/PAYLOAD;
 	}
@@ -109,14 +107,10 @@ int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pro
 
 	//INT TX
 	gettimeofday(&startTime, NULL);
-	
-	//getStatusParam("**************INIT");
-
-	while(tot_acked<tot_pkts && err_count<MAX_ERR){ //while ho pachetti da inviare e non ho MAX_ERR ricezioni consecutive fallite
+	while(tot_acked<tot_pkts && err_count<MAX_ERR){ 
 		sendWindow();
 	}
 
-	//getStatusParam("**************END");
 	if(err_count==MAX_ERR){
 		printf("File transfer failed (inactive receiver)\n");
 		return -1;
@@ -147,8 +141,6 @@ int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pro
 			tp = tp/1024;
 			printf("%f sec [%f MB/s]\n", tm, tp/1024);
 		}
-		
-		
 		return 0;
 	}
 	
@@ -156,41 +148,39 @@ int sendtoGBN(int socket, struct sockaddr_in *receiver_addr, int N, int lost_pro
 	return -1;
 }
 
-
+// send pkts in a window
 void sendWindow(){
 	int i;
-
 	signal(SIGALRM, timeoutRoutine); 
 	for(i=next_seq_num; i<win_end+1; i++){
 		if (!isTimerStarted){
-			//printf("timeout for pkt %d , us: %d\n",i, timeoutInterval);
-			startTimer(timeoutInterval); // setta timer per il piu vecchio pktto non acked
+			startTimer(timeoutInterval);
 			isTimerStarted = true;
 		}
 		sendPkt(i);
 		next_seq_num++;
 	}
 }
-
-
-void sendPkt(int i){
-	if(!packet_lost(LOST_PROB)){
-		//logger("INFO", __func__,__LINE__, "Send pkt: ");
 		//printf("%d, ",i);
 		//printf("window: [%d ----- %d]\n",sendBase,win_end);
 		//getStatusParam("Send pkt");
+
+
+// send single packet
+void sendPkt(int i){
+	if(!packet_lost(LOST_PROB)){
+		logger("INFO", __func__,__LINE__, "Send pkt ");
 		if (sendto(sock, pkts+i, PKT_SIZE, 0, (struct sockaddr *)rcv_addr, addr_len)<0){
 			perror ("Sendto Error");
 			exit(-1);
 		}
 	} else{
-		//LOST
-		//logger("WARN", __func__,__LINE__, "Lost pkt: ");
-		//printf("%d\n",i);
+		logger("WARN", __func__,__LINE__, "Lost pkt ");
 	}
 }
 
 
+// function for thread receive ACK's
 void *recvACK(void *arg){
 	struct thread_args *args = arg;
 	int socket_ack = args->sock;
@@ -202,40 +192,33 @@ void *recvACK(void *arg){
 	int expected_ack = 1;
 	signal(SIGALRM, timeoutRoutine); 
 	while(tot_acked<=tot_pkts){	
+		// receive ack
 		if (recvfrom(socket_ack, &ack_num, sizeof(int), 0, (struct sockaddr *)rcv_addr, &addr_len) < 0){
-			//logger("ERRO",__func__,__LINE__, "Error receiving ack\n");
 			err_count++;
 			if(ADAPTIVE) {
-				//printf("INCerr\n");
 				increase_timeout();
 				isTimerStarted = false;
 			}
 		}else {
-			//logger("INFO",__func__,__LINE__, "Ack received: ");
-			//printf("%d\n",ack_num);
-			// ACK cumulative
+			// ACK CUMULATIVE -----------
 			if(ack_num >= sendBase && ack_num >= expected_ack && ack_num <= win_end){
 				if(ADAPTIVE) {
-					//printf("DECack\n");
 					decrease_timeout();
 				}
 				sendBase = ack_num+1;
 				win_end = MIN(tot_pkts, sendBase + WINDOW -1);
 				tot_acked = ack_num;
 				expected_ack = sendBase;
-				startTimer(timeoutInterval);  // parte il timer per il prossimo pacchetto
+				startTimer(timeoutInterval); 
 				isTimerStarted = true;
-				//printf("ACKtimeout for pkt %d , us: %d\n",expected_ack, timeoutInterval);
 				if (tot_acked == tot_pkts){
 					startTimer(0);
-					//logger("INFO", __func__,__LINE__, "Thread for ack end\n");
 					break;
 				}
 			}
-			// ACK duplicated
+			// ACK DUPLICATED -----------
 			else if(ack_num < expected_ack){ 
 				if(ADAPTIVE) {
-					//printf("INCdup\n");
 					increase_timeout();
 				}
 			}
@@ -247,7 +230,6 @@ void *recvACK(void *arg){
 // timeout routine alarm
 void timeoutRoutine(){
 	if(ADAPTIVE) {
-		//printf("INCtimeout\n");
 		increase_timeout();
 	}
 	//logger("WARN", __func__,__LINE__, "TIMEOUTEXPIRED\n");
@@ -258,7 +240,6 @@ void timeoutRoutine(){
 }
 
 
-// Imposta il timer di ritrasmissione
 void startTimer(int t){
     struct itimerval it_val;
 	it_val.it_value.tv_sec = 0;

@@ -55,5 +55,5 @@ char i;
 typedef struct packet{
 	int seq_num;
 	short int pkt_dim;
-	char data[PAYLOAD]; 	// payload = dimensione del pacchetto - intero del seq number - intero della dim pacchetto
+	char data[PAYLOAD];
 } packet;

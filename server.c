@@ -20,39 +20,32 @@ int handshake(int , struct sockaddr_in *);
 void closeConnection (int server_sock, struct sockaddr_in* client_addr);
 
 
-
-
 int main(int argc, char **argv){
     //socket
     int server_sock, child_sock;
     struct sockaddr_in server_address, client_address, child_addr;
-
     socklen_t addr_len = sizeof(client_address);
-
     char *buff = calloc(PKT_SIZE, sizeof(char));
     char *path = calloc(PKT_SIZE, sizeof(char));
-    char *buffToSend = calloc(PKT_SIZE, sizeof(char));
-
-    FILE *fptr;
 	pid_t pid;
-
-    int fd;
-    int res;
+    int fd, res;
     int num_files;
     char *list_files[MAX_FILE_LIST];
-    
+
+    // create socket dispatcher
     createSocketAndBind(&server_sock, &server_address, SERVER_PORT); 
     logger("INFO", __func__,__LINE__, "Server started!\n");
     while (1) {
-        //printf("while\n");
-        set_timeout(server_sock, 0); // recvfrom all'inizio è bloccante (si fa con timeout==0)
-        if (handshake(server_sock, &client_address) == 0){   //se un client non riesce a ben connettersi, il server non forka
+        // handshake and fork of child
+        set_timeout(server_sock, 0); 
+        if (handshake(server_sock, &client_address) == 0){ 
             pid = fork();
             
             if (pid < 0){
                 logger("ERROR", __func__,__LINE__, "Fork error\n");
-                // exit o return
+                return -1;
             }
+            // new process execution
             if (pid == 0){
                 pid = getpid();
                 child_sock = createSocketAndBind(&child_sock, &child_addr, 0);
@@ -65,10 +58,12 @@ int main(int argc, char **argv){
                 }
 
 
-    request:
+        request:
+                // server ready on "child" socket
                 set_timeout_sec(child_sock, REQUEST_SEC);
                 logger("INFO", __func__,__LINE__, "Waiting for request...\n");
                 memset(buff, 0, sizeof(buff));
+                // receive request
                 if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0){
                     logger("ERROR", __func__, __LINE__,"Request command failed\n");
                     free(buff);
@@ -77,8 +72,11 @@ int main(int argc, char **argv){
                     return 0;
                 }
 
-                switch (*(int*)buff){
+                switch (*(int*)buff)
+                {
 
+
+// LIST ------------------------------------------------------------------------------------------------------
                 case LIST:
                     logger("INFO", __func__, __LINE__, "LIST Request\n");
                     
@@ -98,6 +96,7 @@ int main(int argc, char **argv){
                         write(fd, buff, strlen(buff));
                         i++;
                     }
+                    // send file
                     if(sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd) == -1){
                         logger("ERROR", __func__, __LINE__, "Error sending file");
                         close(fd);
@@ -107,13 +106,15 @@ int main(int argc, char **argv){
                     close(fd);
                     remove("file_list.txt");
 
-                    break; // -------------------------------------------------------------------------ù
+                    break; 
                 
+
+// GET ------------------------------------------------------------------------------------------------------
                 case GET:
                     logger("INFO", __func__, __LINE__, "GET Request\n");
                     set_timeout_sec(child_sock, SELECT_FILE_SEC);
                     memset(buff, 0, sizeof(buff));
-                    // get filename
+                    // receive filename
                     if (recvfrom(child_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&client_address, &addr_len) < 0) {
                         logger("ERROR", __func__, __LINE__, "File transfer failed\n");
                         free(buff);
@@ -121,9 +122,18 @@ int main(int argc, char **argv){
                         close(child_sock);
                         return 1;
                     }
+                    // noverwrite
+                    char subover[8];
+                    memcpy(subover, buff, 8);
+                    
+                    if (strcmp(subover,NOVERW) == 0){
+                        logger("WARN", __func__, __LINE__, "Client has canceled download.\n");
+                        goto request;
+                    } 
                     // open file
                     snprintf(path, 13+strlen(buff)+1, "files/server/%s", buff); 
                     fd = open(path, O_RDONLY);
+                    
                     // file not found
                     if(fd == -1){
                         logger("WARN", __func__, __LINE__, "File not found\n");
@@ -142,10 +152,13 @@ int main(int argc, char **argv){
                         logger("ERROR", __func__, __LINE__, "Communicate file found error \n");
                         return 1;
                     }
+                    // send file
                     sendtoGBN(child_sock, &client_address, WINDOW, LOST_PROB, fd);
                     close(fd);
-                    break; // -------------------------------------------------------------------------
+                    break;
 
+
+// PUT ------------------------------------------------------------------------------------------------------
                 case PUT:
                     logger("INFO", __func__, __LINE__, "PUT Request\n");
                     set_timeout_sec(child_sock, SELECT_FILE_SEC);
@@ -158,20 +171,11 @@ int main(int argc, char **argv){
                         close(child_sock);
                         return 1;
                     }
-                    /*
-                    // file alredy exists
-                    snprintf(path, 13+strlen(buff)+1, "files/server/%s", buff); 
-                    fd = open(path, O_RDONLY);
-                    if(fd>0){
-                        logger("ERROR", __func__, __LINE__, "File alredy exists\n");
-                        close(fd);
-                        return 1;
-                    }
-                    close(fd);
-                    */
-                    // file tranfer
+
+                    // receive file
+                    snprintf(path, 13+strlen(buff)+1, "files/server/%s", buff);
                     fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0666);
-                    res = recvfromGBN(child_sock, &client_address,0,fd);
+                    res = recvfromGBN(child_sock, &client_address, 0, fd);
                     if(res == -1) {
                         close(fd);
                         remove(path);
@@ -181,21 +185,23 @@ int main(int argc, char **argv){
                         return 1;
                     }
                     close(fd);
-                    break; // -------------------------------------------------------------------------
+                    
+                    break; 
 
+
+// CLOSE ------------------------------------------------------------------------------------------------------
                 case CLOSE:
                     closeConnection(child_sock, &client_address);
                     free(buff);
                     free(path);
                     close(child_sock);
                     return 0;
-                    break; // -------------------------------------------------------------------------
+                    break; 
 
 
                 default:
                     break;
                 }
-                //printf("goto request\n");
                 goto request;
             } //pid==0
         } // sever_reliable ==0
@@ -211,13 +217,13 @@ int main(int argc, char **argv){
 
 int createSocketAndBind(int *sock, struct sockaddr_in *address, int port) {
 	
-	//creazione socket
+	// socket create
 	if ((*sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         logger("ERROR", __func__, __LINE__, "Socket creation error\n");
 		exit(-1);
 	}
 
-	//configurazione socket
+	// socket config
 	memset((void *)address, 0, sizeof(*address));
 	address->sin_family = AF_INET;
 	address->sin_port = htons(port);
@@ -269,7 +275,7 @@ int handshake (int server_sock, struct sockaddr_in* client_addr) {
 }
 
 
-// Chiude la connessione con il client in modo affidabile
+// Close connection
 void closeConnection (int server_sock, struct sockaddr_in* client_addr) {
     int res;
     char *buff = calloc(PKT_SIZE, sizeof(char));
@@ -310,7 +316,6 @@ void closeConnection (int server_sock, struct sockaddr_in* client_addr) {
         exit(-1);
     }
 
-    // Connessione chiusa
     logger("INFO", __func__,__LINE__, "FINACK received        | <--- |\n");
 	logger("INFO", __func__,__LINE__, "Connection closed      |   X  |\n");
 	printf("-----------------------------------------------------\n");

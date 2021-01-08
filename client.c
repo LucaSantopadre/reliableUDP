@@ -21,21 +21,19 @@ void alarmTimeout();
 
 
 int main (int argc, char** argv) {
-	int res, menu_choiche, bytes, num_files;
+	int res, menu_choiche, num_files;
 	int client_sock;
 	int list = LIST, get = GET, put = PUT, close_conn = CLOSE;
 	struct sockaddr_in server_address;
 	char *buff = calloc(PKT_SIZE, sizeof(char));
+	char *tmp_buff = calloc(PKT_SIZE, sizeof(char));
 	char *path = calloc(PKT_SIZE, sizeof(char));
 	socklen_t addr_len = sizeof(server_address);
-	int file_des;
-	off_t end_file, file_control;
+	off_t end_file;
 	char *list_files[MAX_FILE_LIST];
 	char *list_files_client[MAX_FILE_LIST];
-	char buf[1200];
 conn:
 	createClientSocketAndBind(&client_sock , &server_address, SERVER_PORT);
-
 	handshakeClient(client_sock, &server_address);
   	memset(buff, 0, sizeof(buff));
 
@@ -48,18 +46,20 @@ conn:
 	printf(" WELCOME, you are connected to the server!\n");
 
 init:
+	// print local file list
 	num_files = getFiles(list_files_client, CLIENT_DIR);
 	if(num_files == 0){
 		printf(" Your dir is empty!\n");
 	} else {
 		int i=0;
-		printf("\n--------------------- LOCAL FILE LIST ---------------------\n");
+		printf("\n######### LOCAL FILE LIST #########\n");
+		
 		while(i<num_files) {
 			printf("%s\n", list_files_client[i]);
 			i++;
 		}
 	}
-	printf("-----------------------------------------------------------\n");
+	printf("###################################\n");
 	printf("============== COMMAND LIST ================\n");
 	printf("1) List available files on the server\n");
 	printf("2) Download a file from the server\n");
@@ -75,23 +75,27 @@ init:
 
 	switch (menu_choiche)
 	{
+
+
+// LIST ------------------------------------------------------------------------------------------------------
 	case LIST:
+	    // send list command
 		res = sendto(client_sock, (void*)&list, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len);
 		if(res < 0){
 			logger("ERROR", __func__, __LINE__, "Request LIST failed (sendto)\n");
 			exit(-1);
 		}
 		
-		int fd = open("files/client/file_list.txt", O_CREAT | O_TRUNC | O_RDWR, 0666); //Apro il file con la lista dei file del server
+		int fd = open("files/client/file_list.txt", O_CREAT | O_TRUNC | O_RDWR, 0666);
 			
-		// Inizio la ricezione del file
+		// receive file
 		if(recvfromGBN(client_sock, &server_address,0,fd) == -1) {
 			logger("ERROR", __func__, __LINE__, "Error receiving file\n");
 			close(fd);
 			remove("files/client/file_list.txt");
 		}
 
-		// Lettura del file contenente la lista di file del server
+		// Print list in output
 		end_file = lseek(fd, 0, SEEK_END);
 		if (end_file >0){
 			lseek(fd, 0, SEEK_SET);
@@ -102,9 +106,12 @@ init:
 			close(fd);
 			remove("files/client/file_list.txt");
 		}
-		break; // --------------------------------------------------------------------------
+		break; 
 
+
+// GET ------------------------------------------------------------------------------------------------------
 	case GET:
+		// send get command
 		if(sendto(client_sock, (void*)&get, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len) < 0){
 			logger("ERROR", __func__, __LINE__, "Request GET failed (sendto)\n");
 			exit(-1);
@@ -115,6 +122,29 @@ init:
 		if(scanf("%s", buff)>0) {
 			alarm(0);
 		}
+
+		// File exists?
+		char *aux = calloc(PKT_SIZE, sizeof(char));
+		snprintf(aux, 13+strlen(buff)+1, "files/client/%s", buff);
+		fd = open(aux, O_RDONLY);
+		if(fd>0){
+			char overwrite;
+			printf("> File alredy exists, you want overwrite it? [Y/N]: ");
+			scanf(" %c", &overwrite);
+			if (overwrite == 'Y' || overwrite == 'y'){
+				//continue
+			}
+			else {
+				if(sendto(client_sock, NOVERW, strlen(NOVERW), 0, (struct sockaddr *)&server_address, addr_len) < 0){
+					logger("ERROR", __func__, __LINE__, "Error sending NOVERW\n");
+					exit(-1);
+				}
+				close(fd);
+				goto init;
+			}
+		}
+		close(fd);
+		
 		// send filename
 		if(sendto(client_sock, buff, PKT_SIZE, 0, (struct sockaddr *)&server_address, addr_len) < 0) {
 			logger("ERROR", __func__, __LINE__, "Request failed (sendto)\n");
@@ -132,7 +162,7 @@ init:
 			free(path);
 			exit(-1);
 		}
-		if(strncmp(buff, NFOUND, strlen(NFOUND)) == 0) { //file non presente sul server se ricevo notfound
+		if(strncmp(buff, NFOUND, strlen(NFOUND)) == 0) { 
 			logger("ERROR", __func__, __LINE__, "File not found \n");
 			close(fd);
 			remove(path);
@@ -150,9 +180,12 @@ init:
 		logger("INFO", __func__, __LINE__, "File received in: ");
 		printf("%s\n",path);
 		close(fd);
-		break; // --------------------------------------------------------------------------
+		break;
 
+
+// PUT ------------------------------------------------------------------------------------------------------
 	case PUT:
+	    // send put command
 		if(sendto(client_sock, (void*)&put, sizeof(int), 0, (struct sockaddr *)&server_address, addr_len) < 0){
 			logger("ERROR", __func__, __LINE__, "Request PUT failed (sendto)\n");
 			exit(-1);
@@ -170,7 +203,9 @@ init:
 			exit(-1);
 		}
 
+		// file found?
 		snprintf(path, 13+strlen(buff)+1, "files/client/%s", buff);
+		printf("%s\n", path);
 		fd = open(path, O_RDONLY);
 		if(fd == -1){
 			logger("ERROR", __func__, __LINE__, "File not found\n");
@@ -185,9 +220,10 @@ init:
 		close(fd);
 		logger("INFO", __func__, __LINE__, "File sended\n");
 		
-		break; // --------------------------------------------------------------------------
+		break; 
 
-	
+
+// CLOSE ------------------------------------------------------------------------------------------------------
 	case CLOSE:
 close:	if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
 			logger("ERROR", __func__, __LINE__, "Error request close (sending)\n");
@@ -195,11 +231,12 @@ close:	if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sock
 		}
 		closeConnectionClient(client_sock, &server_address);
 		return 0;
-		break; // --------------------------------------------------------------------------
+		break; 
 
 
+// UNCOMMENT THIS CASE FOR TESTING ------------------------------------------------------------------------------------------------------
+/*
 	case 99:
-			
 		for (int i = 0; i < 500; i++)
 		{
 			memset(buff, 0, sizeof(buff));
@@ -246,8 +283,8 @@ close:	if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sock
 		close(fd);
 		goto close;
 		return 0;
-		break; // --------------------------------------------------------------------------
-
+		break; 
+*/
 	
 	default:
 		menu_choiche=0;
@@ -255,7 +292,6 @@ close:	if (sendto(client_sock, (void *)&close_conn, sizeof(int), 0, (struct sock
 		fflush(stdin);
 		break;
 	}
-	//printf("goto init\n");
 	goto init;
 }
 
@@ -287,7 +323,7 @@ int createClientSocketAndBind(int *c_sock, struct sockaddr_in *s_addr, int port)
 
 
 
-// Stabilisce la connessione con il server tramite 3-way handshake
+// 3-way handshake
 void handshakeClient (int client_sock, struct sockaddr_in *server_addr) {
 	int res;
 	char *buff = calloc(PKT_SIZE, sizeof(char));
@@ -324,7 +360,7 @@ void handshakeClient (int client_sock, struct sockaddr_in *server_addr) {
 }
 
 
-// Chiude la connessione con il server in modo affidabile
+// Close connection
 void closeConnectionClient (int client_sock, struct sockaddr_in *server_addr) {
 	int control;
 	char *buff = calloc(PKT_SIZE, sizeof(char));
@@ -340,7 +376,7 @@ void closeConnectionClient (int client_sock, struct sockaddr_in *server_addr) {
 	}
 
 
-	// In attesa del FINACK
+	// FINACK
 	memset(buff, 0, sizeof(buff));
 	control = recvfrom(client_sock, buff, strlen(FINACK), 0, (struct sockaddr *)server_addr, &addr_len);
 	if (control < 0 || strncmp(buff, FINACK, strlen(FINACK)) != 0) {
@@ -350,7 +386,7 @@ void closeConnectionClient (int client_sock, struct sockaddr_in *server_addr) {
 	logger("INFO", __func__, __LINE__, "FINACK received          | ---> |\n"); 
 
 
-	// In attesa del FIN
+	// FIN
 	memset(buff, 0, sizeof(buff));
 	control = recvfrom(client_sock, buff, strlen(FIN), 0, (struct sockaddr *)server_addr, &addr_len);
 	if (control < 0 || strncmp(buff, FIN, strlen(FIN)) != 0) {
@@ -359,15 +395,13 @@ void closeConnectionClient (int client_sock, struct sockaddr_in *server_addr) {
 	}
 	logger("INFO", __func__, __LINE__, "FIN received             | ---> |\n"); 
 	
-	// Invio del FINACK
+	// FINACK
 	logger("INFO", __func__, __LINE__, "FINACK   sent            | <--- |\n");
 	control = sendto(client_sock, FINACK, strlen(FINACK), 0, (struct sockaddr *)server_addr, addr_len);
 	if (control < 0) {
 		printf("CLIENT: close connection failed (sending FINACK)\n");
 		exit(-1);
 	}		
-	
-	// Connessione chiusa
 	logger("INFO", __func__, __LINE__, "Connection closed        |   X  |\n");
 	printf("-------------------------------------------------------\n");
 }
